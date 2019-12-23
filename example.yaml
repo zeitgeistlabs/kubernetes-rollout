@@ -1,0 +1,33 @@
+# Example PinnedDeployment
+apiVersion: rollout.zeitgeistlabs.io/v1alpha1
+kind: PinnedDeployment
+metadata:
+  name: example
+spec:
+  selector:
+    matchLabels:
+      app: example
+  replicas: 5
+  replicasPercentNext: 20
+  replicasRoundingStrategy: "Nearest"
+  templates:
+    previous:
+      metadata:
+        labels:
+          app: example
+      spec:
+        containers:
+          - name: webserver
+            image: nginx:1.16
+            ports:
+              - containerPort: 80
+    next:
+      metadata:
+        labels:
+          app: example
+      spec:
+        containers:
+          - name: webserver
+            image: nginx:1.17
+            ports:
+              - containerPort: 80

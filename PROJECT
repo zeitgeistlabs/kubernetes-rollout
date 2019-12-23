@@ -1,0 +1,7 @@
+domain: zeitgeistlabs.io
+repo: github.com/vllry/pinneddeployment
+resources:
+- group: rollout
+  kind: PinnedDeployment
+  version: v1alpha1
+version: "2"

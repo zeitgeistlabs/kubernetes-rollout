@@ -1,0 +1,40 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - replicasets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rollout.zeitgeistlabs.io
+  resources:
+  - pinneddeployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rollout.zeitgeistlabs.io
+  resources:
+  - pinneddeployments/status
+  verbs:
+  - get
+  - patch
+  - update

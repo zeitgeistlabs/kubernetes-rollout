@@ -1,0 +1,7 @@
+apiVersion: rollout.zeitgeistlabs.io/v1alpha1
+kind: PinnedDeployment
+metadata:
+  name: pinneddeployment-sample
+spec:
+  # Add fields here
+  foo: bar
