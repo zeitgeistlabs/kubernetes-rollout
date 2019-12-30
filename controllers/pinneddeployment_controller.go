@@ -117,6 +117,36 @@ func (r *PinnedDeploymentReconciler) Reconcile(req ctrl.Request) (ctrl.Result, e
 		return ctrl.Result{Requeue: true}, err
 	}
 
+	// Check if Status.Selector needs an update.
+	selector, err := metav1.LabelSelectorAsSelector(pinnedDeployment.Spec.Selector)
+	if err != nil {
+		return ctrl.Result{Requeue: false}, err
+	}
+	selectorString := selector.String()
+	if pinnedDeployment.Status.Selector != selectorString {
+		pinnedDeployment.Status.Selector = selectorString
+		if err := r.Client.Status().Update(ctx, &pinnedDeployment); err != nil {
+			return ctrl.Result{Requeue: true}, err
+		}
+	}
+
+	// Calculate total replicas.
+	var currentTotalReplicas int32 = 0
+	if previousReplicaSet != nil {
+		currentTotalReplicas += previousReplicaSet.Status.Replicas
+	}
+	if nextReplicaSet != nil {
+		currentTotalReplicas += nextReplicaSet.Status.Replicas
+	}
+
+	// Check if Status.Replicas needs an update.
+	if pinnedDeployment.Status.Replicas != currentTotalReplicas {
+		pinnedDeployment.Status.Replicas = currentTotalReplicas
+		if err := r.Client.Status().Update(ctx, &pinnedDeployment); err != nil {
+			return ctrl.Result{Requeue: true}, err
+		}
+	}
+
 	return ctrl.Result{}, nil
 }
 

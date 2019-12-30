@@ -15,6 +15,12 @@ spec:
     plural: pinneddeployments
     singular: pinneddeployment
   scope: Namespaced
+  subresources:
+    scale:
+      labelSelectorPath: .status.selector
+      specReplicasPath: .spec.replicas
+      statusReplicasPath: .status.replicas
+    status: {}
   validation:
     openAPIV3Schema:
       description: PinnedDeployment is the Schema for the pinneddeployments API
@@ -12056,6 +12062,12 @@ spec:
           type: object
         status:
           description: PinnedDeploymentStatus defines the observed state of PinnedDeployment
+          properties:
+            replicas:
+              format: int32
+              type: integer
+            selector:
+              type: string
           type: object
       type: object
   version: v1alpha1
