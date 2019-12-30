@@ -18,10 +18,11 @@ package controllers
 import (
 	"context"
 	"encoding/json"
-	"github.com/pkg/errors"
 	"math"
+	"reflect"
 
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -117,37 +118,69 @@ func (r *PinnedDeploymentReconciler) Reconcile(req ctrl.Request) (ctrl.Result, e
 		return ctrl.Result{Requeue: true}, err
 	}
 
-	// Check if Status.Selector needs an update.
-	selector, err := metav1.LabelSelectorAsSelector(pinnedDeployment.Spec.Selector)
+	needsUpdate, err := r.updateStatus(&pinnedDeployment, previousReplicaSet, nextReplicaSet, previousReplicas, nextReplicas)
 	if err != nil {
-		return ctrl.Result{Requeue: false}, err
-	}
-	selectorString := selector.String()
-	if pinnedDeployment.Status.Selector != selectorString {
-		pinnedDeployment.Status.Selector = selectorString
-		if err := r.Client.Status().Update(ctx, &pinnedDeployment); err != nil {
-			return ctrl.Result{Requeue: true}, err
-		}
+		return ctrl.Result{}, err
 	}
 
-	// Calculate total replicas.
-	var currentTotalReplicas int32 = 0
-	if previousReplicaSet != nil {
-		currentTotalReplicas += previousReplicaSet.Status.Replicas
-	}
-	if nextReplicaSet != nil {
-		currentTotalReplicas += nextReplicaSet.Status.Replicas
-	}
+	if needsUpdate {
+		log.Info("Updating status.")
 
-	// Check if Status.Replicas needs an update.
-	if pinnedDeployment.Status.Replicas != currentTotalReplicas {
-		pinnedDeployment.Status.Replicas = currentTotalReplicas
+		// This operation must be last & conditional, as changing the status triggers a reconcile.
 		if err := r.Client.Status().Update(ctx, &pinnedDeployment); err != nil {
-			return ctrl.Result{Requeue: true}, err
+			return ctrl.Result{}, err
 		}
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// Update status fields of the PinnedDeployment.
+func (r *PinnedDeploymentReconciler) updateStatus(
+	pinnedDeployment *rolloutv1alpha1.PinnedDeployment,
+	previousReplicaSet *appsv1.ReplicaSet,
+	nextReplicaSet *appsv1.ReplicaSet,
+	previousReplicaTarget int32,
+	nextReplicasTarget int32,
+) (bool, error) {
+
+	var originalStatus = *pinnedDeployment.Status.DeepCopy() // Save the original status.
+
+	// Write replica targets.
+	pinnedDeployment.Status.Versions.Previous.DesiredReplicas = previousReplicaTarget
+	pinnedDeployment.Status.Versions.Next.DesiredReplicas = nextReplicasTarget
+
+	currentReplicas := map[string]int32{}
+	readyReplicas := map[string]int32{}
+	for key, rs := range map[string]*appsv1.ReplicaSet{"previous": previousReplicaSet, "next": nextReplicaSet} {
+		if rs != nil {
+			currentReplicas[key] = rs.Status.Replicas
+			readyReplicas[key] = rs.Status.ReadyReplicas
+		}
+	}
+
+	// Set versioned statuses.
+	for key, versionStatus := range map[string]*rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+		"previous": &pinnedDeployment.Status.Versions.Previous,
+		"next":     &pinnedDeployment.Status.Versions.Next,
+	} {
+		// Deliberately use the 0 from a not-found.
+		versionStatus.CurrentReplicas, _ = currentReplicas[key]
+		versionStatus.ReadyReplicas, _ = readyReplicas[key]
+	}
+
+	// Set overall replica statuses.
+	pinnedDeployment.Status.CurrentReplicas = totalValueForKeys(currentReplicas)
+	pinnedDeployment.Status.ReadyReplicas = totalValueForKeys(readyReplicas)
+
+	// Check if Status.Selector needs an update.
+	selector, err := metav1.LabelSelectorAsSelector(pinnedDeployment.Spec.Selector)
+	if err != nil {
+		return false, err
+	}
+	pinnedDeployment.Status.Selector = selector.String()
+
+	return !reflect.DeepEqual(originalStatus, pinnedDeployment.Status), nil
 }
 
 // Ensure that a ReplicaSet exists, and is in the desired state.

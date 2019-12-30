@@ -39,14 +39,14 @@ var _ webhook.Defaulter = &PinnedDeployment{}
 // Default implements webhook.Defaulter so a webhook will be registered for the type
 func (r *PinnedDeployment) Default() {
 	pinneddeploymentlog.Info("default", "name", r.Name)
-	pinneddeploymentlog.Info("original", "object", r)
+	// pinneddeploymentlog.Info("original", "object", r)
 
 	if r.Spec.ReplicasRoundingStrategy == "" {
 		r.Spec.ReplicasRoundingStrategy = NearestReplicasRoundingStrategyType
 	}
 
 	// We don't attempt to set PodSpec defaults in the templates.
-	pinneddeploymentlog.Info("defaulted", "object", r)
+	// pinneddeploymentlog.Info("defaulted", "object", r)
 }
 
 // +kubebuilder:webhook:verbs=create;update,path=/validate-rollout-zeitgeistlabs-io-v1alpha1-pinneddeployment,mutating=false,failurePolicy=fail,groups=rollout.zeitgeistlabs.io,resources=pinneddeployments,versions=v1alpha1,name=vpinneddeployment.kb.io

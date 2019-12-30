@@ -17,3 +17,11 @@ func randomString(length int) string {
 	}
 	return string(b)
 }
+
+func totalValueForKeys(m map[string]int32) int32 {
+	var total int32 = 0
+	for _, value := range m {
+		total += value
+	}
+	return total
+}

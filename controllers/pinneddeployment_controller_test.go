@@ -21,6 +21,217 @@ import (
 	rolloutv1alpha1 "github.com/zeitgeistlabs/kubernetes-rollout/api/v1alpha1"
 )
 
+func TestPinnedDeploymentReconciler_updateStatus(t *testing.T) {
+	pdNoStatus := rolloutv1alpha1.PinnedDeployment{
+		Spec: rolloutv1alpha1.PinnedDeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"key": "value",
+				},
+			},
+		},
+	}
+
+	cases := []struct {
+		pd                rolloutv1alpha1.PinnedDeployment
+		previousRs        *v1.ReplicaSet
+		nextRs            *v1.ReplicaSet
+		previousReplicas  int32
+		nextReplicas      int32
+		expectStatus      rolloutv1alpha1.PinnedDeploymentStatus
+		expectNeedsUpdate bool
+	}{
+		{
+			pd:                pdNoStatus,
+			previousRs:        nil,
+			nextRs:            nil,
+			previousReplicas:  4,
+			nextReplicas:      1,
+			expectNeedsUpdate: true,
+			expectStatus: rolloutv1alpha1.PinnedDeploymentStatus{
+				Selector:        "key=value",
+				CurrentReplicas: 0,
+				ReadyReplicas:   0,
+				Versions: rolloutv1alpha1.PinnedDeploymentVersionedStatuses{
+					Previous: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+						DesiredReplicas: 4,
+						CurrentReplicas: 0,
+						ReadyReplicas:   0,
+					},
+					Next: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+						DesiredReplicas: 1,
+						CurrentReplicas: 0,
+						ReadyReplicas:   0,
+					},
+				},
+			},
+		},
+		{
+			pd: pdNoStatus,
+			previousRs: &v1.ReplicaSet{
+				Status: v1.ReplicaSetStatus{
+					Replicas:      9,
+					ReadyReplicas: 8,
+				},
+			},
+			nextRs:            nil,
+			previousReplicas:  10,
+			nextReplicas:      10,
+			expectNeedsUpdate: true,
+			expectStatus: rolloutv1alpha1.PinnedDeploymentStatus{
+				Selector:        "key=value",
+				CurrentReplicas: 9,
+				ReadyReplicas:   8,
+				Versions: rolloutv1alpha1.PinnedDeploymentVersionedStatuses{
+					Previous: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+						DesiredReplicas: 10,
+						CurrentReplicas: 9,
+						ReadyReplicas:   8,
+					},
+					Next: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+						DesiredReplicas: 10,
+						CurrentReplicas: 0,
+						ReadyReplicas:   0,
+					},
+				},
+			},
+		},
+		{
+			pd:         pdNoStatus,
+			previousRs: nil,
+			nextRs: &v1.ReplicaSet{
+				Status: v1.ReplicaSetStatus{
+					Replicas:      9,
+					ReadyReplicas: 8,
+				},
+			},
+			previousReplicas:  10,
+			nextReplicas:      10,
+			expectNeedsUpdate: true,
+			expectStatus: rolloutv1alpha1.PinnedDeploymentStatus{
+				Selector:        "key=value",
+				CurrentReplicas: 9,
+				ReadyReplicas:   8,
+				Versions: rolloutv1alpha1.PinnedDeploymentVersionedStatuses{
+					Previous: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+						DesiredReplicas: 10,
+						CurrentReplicas: 0,
+						ReadyReplicas:   0,
+					},
+					Next: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+						DesiredReplicas: 10,
+						CurrentReplicas: 9,
+						ReadyReplicas:   8,
+					},
+				},
+			},
+		},
+		{
+			pd: pdNoStatus,
+			previousRs: &v1.ReplicaSet{
+				Status: v1.ReplicaSetStatus{
+					Replicas:      5,
+					ReadyReplicas: 5,
+				},
+			},
+			nextRs: &v1.ReplicaSet{
+				Status: v1.ReplicaSetStatus{
+					Replicas:      15,
+					ReadyReplicas: 12,
+				},
+			},
+			previousReplicas:  5,
+			nextReplicas:      15,
+			expectNeedsUpdate: true,
+			expectStatus: rolloutv1alpha1.PinnedDeploymentStatus{
+				Selector:        "key=value",
+				CurrentReplicas: 20,
+				ReadyReplicas:   17,
+				Versions: rolloutv1alpha1.PinnedDeploymentVersionedStatuses{
+					Previous: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+						DesiredReplicas: 5,
+						CurrentReplicas: 5,
+						ReadyReplicas:   5,
+					},
+					Next: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+						DesiredReplicas: 15,
+						CurrentReplicas: 15,
+						ReadyReplicas:   12,
+					},
+				},
+			},
+		},
+		{
+			pd: rolloutv1alpha1.PinnedDeployment{
+				Spec: rolloutv1alpha1.PinnedDeploymentSpec{
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"key": "value",
+						},
+					},
+				},
+				Status: rolloutv1alpha1.PinnedDeploymentStatus{
+					Selector:        "key=value",
+					CurrentReplicas: 0,
+					ReadyReplicas:   0,
+					Versions: rolloutv1alpha1.PinnedDeploymentVersionedStatuses{
+						Previous: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+							DesiredReplicas: 9,
+							CurrentReplicas: 0,
+							ReadyReplicas:   0,
+						},
+						Next: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+							DesiredReplicas: 1,
+							CurrentReplicas: 0,
+							ReadyReplicas:   0,
+						},
+					},
+				},
+			},
+			previousRs:        nil,
+			nextRs:            nil,
+			previousReplicas:  9,
+			nextReplicas:      1,
+			expectNeedsUpdate: false,
+			expectStatus: rolloutv1alpha1.PinnedDeploymentStatus{
+				Selector:        "key=value",
+				CurrentReplicas: 0,
+				ReadyReplicas:   0,
+				Versions: rolloutv1alpha1.PinnedDeploymentVersionedStatuses{
+					Previous: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+						DesiredReplicas: 9,
+						CurrentReplicas: 0,
+						ReadyReplicas:   0,
+					},
+					Next: rolloutv1alpha1.PinnedDeploymentVersionedStatus{
+						DesiredReplicas: 1,
+						CurrentReplicas: 0,
+						ReadyReplicas:   0,
+					},
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		r := PinnedDeploymentReconciler{}
+
+		needsUpdate, err := r.updateStatus(&c.pd, c.previousRs, c.nextRs, c.previousReplicas, c.nextReplicas)
+		if err != nil {
+			t.Errorf("expected no error: %v", err)
+		}
+
+		if needsUpdate != c.expectNeedsUpdate {
+			t.Errorf("expected 'needs update' to be %v, got %v", c.expectNeedsUpdate, needsUpdate)
+		}
+
+		if !reflect.DeepEqual(c.pd.Status, c.expectStatus) {
+			t.Errorf("Statuses didn't match. GOT: %v\nEXPECTED: %v", c.pd.Status, c.expectStatus)
+		}
+	}
+
+}
+
 func TestPinnedDeploymentReconciler_setControllerReference(t *testing.T) {
 	pd := v1alpha1.PinnedDeployment{
 		ObjectMeta: metav1.ObjectMeta{
