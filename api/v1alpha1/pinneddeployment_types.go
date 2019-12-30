@@ -85,10 +85,19 @@ type BasicMetadata struct {
 
 // PinnedDeploymentStatus defines the observed state of PinnedDeployment
 type PinnedDeploymentStatus struct {
-	// Important: Run "make" to regenerate code after modifying this file
+	Replicas int32  `json:"replicas,omitempty"`
+	Selector string `json:"selector,omitempty"` // TODO should this go in the spec? It's fixed based on Spec.Selector
+	/*
+		Need the following:
+			- Total replicas
+			- Total ready replicas
+			- Total & desired & ready per-version
+	*/
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
+// +kubebuilder:subresource:status
 
 // PinnedDeployment is the Schema for the pinneddeployments API
 type PinnedDeployment struct {
