@@ -34,7 +34,7 @@ spec:
     scale:
       labelSelectorPath: .status.selector
       specReplicasPath: .spec.replicas
-      statusReplicasPath: .status.replicas
+      statusReplicasPath: .status.currentReplicas
     status: {}
   validation:
     openAPIV3Schema:
@@ -12078,11 +12078,45 @@ spec:
         status:
           description: PinnedDeploymentStatus defines the observed state of PinnedDeployment
           properties:
-            replicas:
+            currentReplicas:
+              format: int32
+              type: integer
+            readyReplicas:
               format: int32
               type: integer
             selector:
               type: string
+            versions:
+              properties:
+                next:
+                  description: PinnedDeploymentVersionedStatus contains status information
+                    for a subset of replicas.
+                  properties:
+                    currentReplicas:
+                      format: int32
+                      type: integer
+                    desiredReplicas:
+                      format: int32
+                      type: integer
+                    readyReplicas:
+                      format: int32
+                      type: integer
+                  type: object
+                previous:
+                  description: PinnedDeploymentVersionedStatus contains status information
+                    for a subset of replicas.
+                  properties:
+                    currentReplicas:
+                      format: int32
+                      type: integer
+                    desiredReplicas:
+                      format: int32
+                      type: integer
+                    readyReplicas:
+                      format: int32
+                      type: integer
+                  type: object
+              type: object
           type: object
       type: object
   version: v1alpha1

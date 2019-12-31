@@ -85,18 +85,27 @@ type BasicMetadata struct {
 
 // PinnedDeploymentStatus defines the observed state of PinnedDeployment
 type PinnedDeploymentStatus struct {
-	Replicas int32  `json:"replicas,omitempty"`
+	Versions        PinnedDeploymentVersionedStatuses `json:"versions,omitempty"`
+	CurrentReplicas int32                             `json:"currentReplicas,omitempty"`
+	ReadyReplicas   int32                             `json:"readyReplicas,omitempty"`
+
 	Selector string `json:"selector,omitempty"` // TODO should this go in the spec? It's fixed based on Spec.Selector
-	/*
-		Need the following:
-			- Total replicas
-			- Total ready replicas
-			- Total & desired & ready per-version
-	*/
+}
+
+type PinnedDeploymentVersionedStatuses struct {
+	Previous PinnedDeploymentVersionedStatus `json:"previous,omitempty"`
+	Next     PinnedDeploymentVersionedStatus `json:"next,omitempty"`
+}
+
+// PinnedDeploymentVersionedStatus contains status information for a subset of replicas.
+type PinnedDeploymentVersionedStatus struct {
+	DesiredReplicas int32 `json:"desiredReplicas,omitempty"`
+	CurrentReplicas int32 `json:"currentReplicas,omitempty"`
+	ReadyReplicas   int32 `json:"readyReplicas,omitempty"`
 }
 
 // +kubebuilder:object:root=true
-// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
+// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.currentReplicas,selectorpath=.status.selector
 // +kubebuilder:subresource:status
 
 // PinnedDeployment is the Schema for the pinneddeployments API
