@@ -233,8 +233,8 @@ func (r *PinnedDeploymentReconciler) makeReplicaSetConform(
 			replicas,
 		)
 
-		if !r.partialReplicaSetSpecMatch(existingReplicaSet.Spec, desiredReplicaSetSpec) {
-			r.Log.Info("Updating ReplicaSet",
+		if !r.selectFieldsReplicaSetSpecMatch(existingReplicaSet.Spec, desiredReplicaSetSpec) {
+			r.Log.Info("Updating ReplicaSet spec",
 				"replicaset", existingReplicaSet.Name,
 				"replicas", replicas,
 				"oldReplicas", existingReplicaSet.Spec.Replicas,
@@ -300,26 +300,24 @@ func (r *PinnedDeploymentReconciler) buildReplicaSet(
 
 func (r *PinnedDeploymentReconciler) buildReplicaSetSpec(selector metav1.LabelSelector, podTemplateSpec rolloutv1alpha1.FakePodTemplateSpec, replicas int32) appsv1.ReplicaSetSpec {
 	return appsv1.ReplicaSetSpec{
-		Replicas:        &replicas,
-		MinReadySeconds: 0,
+		Replicas: &replicas,
 		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: podTemplateSpec.Metadata.Labels,
 			},
 			Spec: podTemplateSpec.Spec,
 		},
-		Selector: &selector,
+		Selector:        &selector,
+		MinReadySeconds: 0,
 	}
 }
 
 // Checks that certain fields of a pair of ReplicaSets match.
 // In particular, this ignores the PodTemplateSpec, as the specs are mutated by Kubernetes admission controllers.
-func (r *PinnedDeploymentReconciler) partialReplicaSetSpecMatch(a, b appsv1.ReplicaSetSpec) bool {
-	equal := a.Selector == b.Selector &&
-		a.Replicas == b.Replicas &&
-		a.MinReadySeconds == b.MinReadySeconds
-
-	return equal
+func (r *PinnedDeploymentReconciler) selectFieldsReplicaSetSpecMatch(a, b appsv1.ReplicaSetSpec) bool {
+	return a.Replicas != nil && b.Replicas != nil && *a.Replicas == *b.Replicas &&
+		a.MinReadySeconds == b.MinReadySeconds &&
+		reflect.DeepEqual(*a.Selector, *b.Selector)
 }
 
 // Hack to get around PodSpec defaulting logic.

@@ -12,3 +12,7 @@ func replicaSetOnly(replicaSet *appsv1.ReplicaSet, err error) appsv1.ReplicaSet 
 	}
 	return *replicaSet
 }
+
+func int32Ptr(i int32) *int32 {
+	return &i
+}
