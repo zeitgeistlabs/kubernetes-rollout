@@ -21,6 +21,84 @@ import (
 	rolloutv1alpha1 "github.com/zeitgeistlabs/kubernetes-rollout/api/v1alpha1"
 )
 
+func TestPinnedDeploymentReconciler_selectFieldsReplicaSetSpecMatch(t *testing.T) {
+	cases := []struct {
+		a           v1.ReplicaSetSpec
+		b           v1.ReplicaSetSpec
+		expectEqual bool
+	}{
+		{
+			a: v1.ReplicaSetSpec{
+				Replicas:        int32Ptr(2),
+				MinReadySeconds: 0,
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"k": "v",
+					},
+				},
+			},
+			b: v1.ReplicaSetSpec{
+				Replicas:        int32Ptr(2),
+				MinReadySeconds: 0,
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"k": "v",
+					},
+				},
+			},
+			expectEqual: true,
+		},
+		{
+			a: v1.ReplicaSetSpec{
+				Replicas:        int32Ptr(1),
+				MinReadySeconds: 0,
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"k": "v",
+					},
+				},
+			},
+			b: v1.ReplicaSetSpec{
+				Replicas:        int32Ptr(2),
+				MinReadySeconds: 0,
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"k": "v",
+					},
+				},
+			},
+			expectEqual: false,
+		},
+		{
+			a: v1.ReplicaSetSpec{
+				Replicas:        int32Ptr(2),
+				MinReadySeconds: 0,
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"k": "v",
+					},
+				},
+			},
+			b: v1.ReplicaSetSpec{
+				Replicas:        int32Ptr(2),
+				MinReadySeconds: 0,
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{},
+				},
+			},
+			expectEqual: false,
+		},
+	}
+
+	for _, c := range cases {
+		r := PinnedDeploymentReconciler{}
+		equal := r.selectFieldsReplicaSetSpecMatch(c.a, c.b) && r.selectFieldsReplicaSetSpecMatch(c.b, c.a)
+		if equal != c.expectEqual {
+			t.Errorf("Expected spec equality to be %v got %v.\nA: %v \nB: %v", c.expectEqual, equal, c.a, c.b)
+		}
+	}
+}
+
 func TestPinnedDeploymentReconciler_updateStatus(t *testing.T) {
 	pdNoStatus := rolloutv1alpha1.PinnedDeployment{
 		Spec: rolloutv1alpha1.PinnedDeploymentSpec{
