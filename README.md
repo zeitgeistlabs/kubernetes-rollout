@@ -6,6 +6,9 @@ It is liable to be missing key features, and break unexpectedly.
 # Kubernetes rollout API
 
 The Kubernetes rollout (`rollout.zeitgeistlabs.io`) API is an API for deploying resources on Kubernetes.
+[[Blog]](https://timewitch.net/post/2019-12-30-pinneddeployments/)
+
+[![asciicast](https://asciinema.org/a/291109.svg)](https://asciinema.org/a/291109)
 
 ## Objects
 
