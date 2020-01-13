@@ -82,18 +82,8 @@ func (r *PinnedDeploymentReconciler) Reconcile(req ctrl.Request) (ctrl.Result, e
 		return ctrl.Result{Requeue: true}, err
 	}
 
+	// Find which (if any) ReplicaSets correspond to the desired versions.
 	previousReplicaSet, nextReplicaSet, stray := r.sortReplicaSets(pinnedDeployment.Spec.Templates, replicaSets.Items)
-	/*var previousName, nextName string
-	if previousReplicaSet != nil {
-		previousName = previousReplicaSet.Name
-	}
-	if nextReplicaSet != nil {
-		nextName = nextReplicaSet.Name
-	}
-	r.Log.Info("found previous and next replicasets",
-		"previous", previousName,
-		"next", nextName)
-	*/
 
 	for _, strayRs := range stray {
 		log.Info("Deleting stray ReplicaSet",
@@ -103,19 +93,41 @@ func (r *PinnedDeploymentReconciler) Reconcile(req ctrl.Request) (ctrl.Result, e
 		if err != nil {
 			return ctrl.Result{Requeue: true}, err
 		}
+		return ctrl.Result{}, nil // Return and let the ReplicaSet deletion re-trigger.
 	}
 
 	// Calculate previous + next target replicas.
 	previousReplicas, nextReplicas := r.calculateReplicas(pinnedDeployment.Spec.Replicas, pinnedDeployment.Spec.ReplicasPercentNext, pinnedDeployment.Spec.ReplicasRoundingStrategy)
 
-	// TODO make order dependent on ReplicasPercentNext change (IE, grow before shrink)
-	err := r.makeReplicaSetConform(ctx, pinnedDeployment, previousReplicaSet, pinnedDeployment.Spec.Templates.Previous, previousReplicas)
-	if err != nil {
-		return ctrl.Result{Requeue: true}, err
-	}
-	err = r.makeReplicaSetConform(ctx, pinnedDeployment, nextReplicaSet, pinnedDeployment.Spec.Templates.Next, nextReplicas)
-	if err != nil {
-		return ctrl.Result{Requeue: true}, err
+	// Ensure both desired ReplicaSets exist & conform to spec.
+	// TODO add rollingupdate rate limiting: https://github.com/zeitgeistlabs/kubernetes-rollout/issues/2
+	for _, version := range []struct {
+		replicaSet   *appsv1.ReplicaSet
+		templateSpec rolloutv1alpha1.FakePodTemplateSpec
+		replicas     int32
+	}{
+		// "Next" ReplicaSet.
+		{
+			replicaSet:   nextReplicaSet,
+			templateSpec: pinnedDeployment.Spec.Templates.Next,
+			replicas:     nextReplicas,
+		},
+		// "Previous" ReplicaSet.
+		{
+			replicaSet:   previousReplicaSet,
+			templateSpec: pinnedDeployment.Spec.Templates.Previous,
+			replicas:     previousReplicas,
+		},
+	} {
+
+		madeChange, err := r.makeReplicaSetConform(ctx, pinnedDeployment, version.replicaSet, version.templateSpec, version.replicas)
+		if err != nil {
+			return ctrl.Result{Requeue: true}, err
+		}
+		if madeChange {
+			return ctrl.Result{}, nil // Return and let the ReplicaSet change re-trigger.
+		}
+
 	}
 
 	needsUpdate, err := r.updateStatus(&pinnedDeployment, previousReplicaSet, nextReplicaSet, previousReplicas, nextReplicas)
@@ -190,7 +202,7 @@ func (r *PinnedDeploymentReconciler) makeReplicaSetConform(
 	existingReplicaSet *appsv1.ReplicaSet,
 	podTemplateSpec rolloutv1alpha1.FakePodTemplateSpec,
 	replicas int32,
-) error {
+) (bool, error) {
 
 	// Create missing ReplicaSet.
 	if existingReplicaSet == nil {
@@ -202,7 +214,7 @@ func (r *PinnedDeploymentReconciler) makeReplicaSetConform(
 			replicas,
 		)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		r.Log.Info("Creating new ReplicaSet",
@@ -210,7 +222,7 @@ func (r *PinnedDeploymentReconciler) makeReplicaSetConform(
 		)
 
 		if err := controllerutil.SetControllerReference(&pinnedDeployment, nextReplicaSet, r.Scheme); err != nil {
-			return errors.Wrap(err, "failed to set controller reference")
+			return false, errors.Wrap(err, "failed to set controller reference")
 		}
 
 		err = r.Client.Create(ctx, nextReplicaSet)
@@ -219,12 +231,14 @@ func (r *PinnedDeploymentReconciler) makeReplicaSetConform(
 				"replicaset", nextReplicaSet.Name,
 				"error", err,
 			)
-			return err
+			return false, err
 		}
 
 		r.Log.Info("Created new ReplicaSet",
 			"replicaset", nextReplicaSet.Name,
 		)
+
+		return true, nil
 
 	} else { // Ensure that the ReplicaSet has the desired state.
 		desiredReplicaSetSpec := r.buildReplicaSetSpec(
@@ -248,16 +262,18 @@ func (r *PinnedDeploymentReconciler) makeReplicaSetConform(
 					"replicaset", existingReplicaSet.Name,
 					"error", err,
 				)
-				return err
+				return false, err
 			}
 
 			r.Log.Info("Updated ReplicaSet",
 				"replicaset", existingReplicaSet.Name,
 			)
+
+			return true, nil
 		}
 	}
 
-	return nil
+	return false, nil
 }
 
 func (r *PinnedDeploymentReconciler) buildReplicaSet(
